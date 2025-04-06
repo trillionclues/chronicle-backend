@@ -24,5 +24,6 @@ logs
 
 # Environment variables
 .env*
+/dist
 
 chronicle-86dce-firebase-adminsdk-fbsvc-1155616c1c.json
