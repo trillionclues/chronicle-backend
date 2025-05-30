@@ -37,12 +37,23 @@ const io = new socketIo.Server(server, {
 
 io.use(async (socket, next) => {
   try {
-    const token = socket.handshake.headers.authorization;
-    console.log(socket.handshake.headers);
-
-    const user = await authenticateFirebaseToken(token!);
-    if (!user) throw new Error("Invalid token");
-    (socket as any) = user;
+    let token = socket.handshake.headers.authorization;
+    
+    if (!token) {
+      return next(new Error("Authentication error"));
+    }
+    
+    if (token.startsWith('Bearer ')) {
+      token = token.substring(7);
+    }
+    
+    const user = await authenticateFirebaseToken(token);
+    if (!user) {
+      throw new Error("Invalid token");
+    }
+    
+    (socket as any).user = user;
+    
     next();
   } catch (error) {
     next(new Error("Authentication error"));
@@ -50,6 +61,7 @@ io.use(async (socket, next) => {
 });
 
 setupGameSockets(io);
+
 
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
