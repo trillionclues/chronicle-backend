@@ -30,7 +30,7 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
   process.exit(1);
 }
 
-console.log("config", serviceAccount);
+// console.log("config", serviceAccount);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
