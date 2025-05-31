@@ -1,3 +1,4 @@
+
 import Game from "../models/Game";
 import { GameQuery, UserDocument } from "../types/gameModelTypes";
 
@@ -8,10 +9,21 @@ const generateGameCode = () => {
 const createGame = async (req: any, res: any) => {
   try {
     const { name, maxRounds, roundTime, voteTime, maxPlayers } = req.body;
-    const gameCode = generateGameCode();
+
+    // Check for game code collisions before saving:
+    let uniqueCodeFound = false;
+    let gameCode = "";
+    while (!uniqueCodeFound) {
+      gameCode = generateGameCode();
+      const existingGame = await Game.findOne({gameCode});
+      if(!existingGame){
+        uniqueCodeFound = true;
+      }
+    }
+
     const newGame = new Game({
       name,
-      gameCode,
+      gameCode: generateGameCode(),
       maxRounds,
       roundTime,
       voteTime,
@@ -24,6 +36,7 @@ const createGame = async (req: any, res: any) => {
         },
       ],
     });
+    
     await newGame.save();
     res.status(201).json({ gameId: newGame._id, gameCode: newGame.gameCode });
   } catch (error) {
@@ -32,10 +45,11 @@ const createGame = async (req: any, res: any) => {
 };
 
 const joinGame = async (req: any, res: any) => {
-  const { gameId } = req.params;
 
   try {
+    const { gameId } = req.params;
     const game = await Game.findById(gameId);
+
     if (!game) return res.status(404).json({ error: "Game not found" });
     if (game.participants.length >= game.maxPlayers) {
       return res.status(400).json({ error: "Game is full" });
@@ -47,6 +61,7 @@ const joinGame = async (req: any, res: any) => {
     ) {
       return res.status(400).json({ error: "User already joined the game" });
     }
+
     game.participants.push({
       userId: req.user.id,
       hasSubmitted: false,
@@ -54,6 +69,7 @@ const joinGame = async (req: any, res: any) => {
       text: "",
       votedFor: null,
     });
+    
     await game.save();
     res.status(200).json({ message: "Joined the game" });
   } catch (error) {
@@ -62,8 +78,9 @@ const joinGame = async (req: any, res: any) => {
 };
 
 const getGame = async (req: any, res: any) => {
-  const { gameId } = req.params;
+  
   try {
+    const { gameId } = req.params;
     const game = await Game.findById(gameId)
       .populate("participants.userId", "firebaseId name photoUrl")
       .lean();
@@ -77,6 +94,7 @@ const getGame = async (req: any, res: any) => {
       hasSubmitted: participant.hasSubmitted,
       _id: participant._id,
     }));
+
     return res.json({
       ...game,
       participants,
@@ -95,17 +113,16 @@ const getUserGames = async (req: any, res: any) => {
       participants: { $elemMatch: { userId: userId } },
     };
 
-    if (isActive === "true") {
-      query.phase = { $nin: ["finished", "canceled"] };
-    } else if (isActive === "false") {
-      query.phase = { $in: ["finished"] };
-    }
+    if (isActive === "true") query.phase = { $nin: ["finished", "canceled"] };
+    if (isActive === "false") query.phase = { $in: ["finished"] };
+
     const games = await Game.find(query)
       .select(
         "name phase currentRound maxRounds history participants gameCode maxPlayers voteTime roundTime"
       )
       .populate("participants.userId")
       .populate("history.author");
+
     const userGames = games.map((game) => {
       const participantMap = new Map(
         game.participants.map((participant) => [
@@ -119,6 +136,7 @@ const getUserGames = async (req: any, res: any) => {
           },
         ])
       );
+
       return {
         id: game._id,
         gameCode: game.gameCode,
@@ -155,6 +173,7 @@ const getUserGames = async (req: any, res: any) => {
         })),
       };
     });
+
     res.status(200).json(userGames);
   } catch (error) {
     res.status(500).json({ error: "Error fetching user games" });
@@ -162,25 +181,22 @@ const getUserGames = async (req: any, res: any) => {
 };
 
 const checkGameByCode = async (req: any, res: any) => {
-  const { gameCode } = req.params;
-  const userId = req.user._id;
+ 
 
   try {
+     const { gameCode } = req.params;
+  const userId = req.user._id;
+
     const game = await Game.findOne({ gameCode })
       .populate("participants.userId")
       .lean();
-    if (!game) {
-      return res.status(404).json({ error: "Game not found" });
-    }
+
+   if (!game) return res.status(404).json({ error: "Game not found" });
     if (game.phase !== "waiting") {
-      return res.status(400).json({
-        error: "The game has already started or finished. You cannot join now.",
-      });
+      return res.status(400).json({ error: "The game has already started or finished. You cannot join now." });
     }
     if (game.participants.length >= game.maxPlayers) {
-      return res.status(400).json({
-        error: "The game has reached its maximum number of players.",
-      });
+      return res.status(400).json({ error: "The game has reached its maximum number of players." });
     }
 
     const participants = game.participants.map((participant) => ({
@@ -206,6 +222,7 @@ const checkGameByCode = async (req: any, res: any) => {
       remainingTime: game.remainingTime,
       participants,
     };
+
     res.status(200).json(gameData);
   } catch (error) {
     res.status(500).json({ error: "Error fetching game by code" });

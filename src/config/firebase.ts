@@ -1,7 +1,6 @@
 import admin from "firebase-admin";
 import fs from "fs";
 import path from "path";
-// import serviceAccount from "../chronicle-86dce-firebase-adminsdk-fbsvc-1155616c1c.json";
 import config from "./config";
 
 let serviceAccount;
@@ -32,7 +31,6 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
 }
 
 console.log("config", serviceAccount);
-// console.log(serviceAccount);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
