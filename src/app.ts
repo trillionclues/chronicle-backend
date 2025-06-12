@@ -40,11 +40,12 @@ const io = new socketIo.Server(server, {
 io.use(async (socket, next) => {
   try {
     console.log("Headers:", socket.handshake.headers);
+    console.log("Query:", socket.handshake.query);
 
-    let token = socket.handshake.headers.authorization;
+    let token = socket.handshake.headers.authorization || socket.handshake.query.token;
 
     if (!token) {
-      return next(new Error("Authentication error: No authorization header"));
+      return next(new Error("Authentication error: No authorization header or token"));
     }
 
     // Handle "Bearer token" and raw token formats
