@@ -39,8 +39,12 @@ const io = new socketIo.Server(server, {
 // socket authentication middleware, attach user to socket
 io.use(async (socket, next) => {
   try {
-   console.log("Headers:", socket.handshake.headers)
-    console.log("Query:", socket.handshake.query)
+    console.log("=== SOCKET AUTHENTICATION DEBUG ===");
+    console.log("Socket ID:", socket.id);
+    console.log("Headers:", JSON.stringify(socket.handshake.headers, null, 2));
+    console.log("Query:", JSON.stringify(socket.handshake.query, null, 2));
+    console.log("Auth header:", socket.handshake.headers.authorization);
+    console.log("Query token:", socket.handshake.query.token);
 
     // Get token from headers or query parameters
     let token: string | undefined
@@ -48,6 +52,7 @@ io.use(async (socket, next) => {
     // Try to get from authorization header first
     const authHeader = socket.handshake.headers.authorization
     if (authHeader && typeof authHeader === "string") {
+      console.log("Found auth header:", authHeader.substring(0, 20) + "...");
       token = authHeader
     }
 
@@ -57,22 +62,29 @@ io.use(async (socket, next) => {
       if (queryToken) {
         // Handle both string and string[] cases
         token = Array.isArray(queryToken) ? queryToken[0] : queryToken
+        console.log("Found query token:", typeof token, token ? token.substring(0, 20) + "..." : "null");
       }
     }
 
     if (!token) {
+      console.log("❌ No token found in headers or query");
       return next(new Error("Authentication error: No authorization header or token"))
     }
 
     // Handle "Bearer token" format
     if (token.startsWith("Bearer ")) {
       token = token.substring(7)
+      console.log("Extracted Bearer token:", token.substring(0, 20) + "...");
     }
 
+    console.log("Attempting to authenticate token...");
     const user = await authenticateFirebaseToken(token)
     if (!user) {
+      console.log("❌ Token authentication failed");
       throw new Error("Invalid token")
     }
+
+    console.log("✅ User authenticated:", user.name, user.firebaseId);
     ;(socket as any).user = {
       id: user._id.toString(),
       firebaseId: user.firebaseId,
@@ -80,11 +92,13 @@ io.use(async (socket, next) => {
       photoUrl: user.photoUrl,
     }
 
+    console.log("=== AUTHENTICATION SUCCESS ===");
     next()
   } catch (error) {
-    next(new Error("Authentication error"));
+    console.error("❌ Socket authentication error:", error);
+    next(new Error("Authentication error"))
   }
-});
+})
 
 // socket.io game setup
 setupGameSockets(io);
