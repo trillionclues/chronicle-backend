@@ -39,33 +39,48 @@ const io = new socketIo.Server(server, {
 // socket authentication middleware, attach user to socket
 io.use(async (socket, next) => {
   try {
-    console.log("Headers:", socket.handshake.headers);
-    console.log("Query:", socket.handshake.query);
+   console.log("Headers:", socket.handshake.headers)
+    console.log("Query:", socket.handshake.query)
 
-    let token = socket.handshake.headers.authorization || socket.handshake.query.token;
+    // Get token from headers or query parameters
+    let token: string | undefined
+
+    // Try to get from authorization header first
+    const authHeader = socket.handshake.headers.authorization
+    if (authHeader && typeof authHeader === "string") {
+      token = authHeader
+    }
+
+    // If no auth header, try query parameter
+    if (!token) {
+      const queryToken = socket.handshake.query.token
+      if (queryToken) {
+        // Handle both string and string[] cases
+        token = Array.isArray(queryToken) ? queryToken[0] : queryToken
+      }
+    }
 
     if (!token) {
-      return next(new Error("Authentication error: No authorization header or token"));
+      return next(new Error("Authentication error: No authorization header or token"))
     }
 
-    // Handle "Bearer token" and raw token formats
+    // Handle "Bearer token" format
     if (token.startsWith("Bearer ")) {
-      token = token.substring(7);
+      token = token.substring(7)
     }
 
-    const user = await authenticateFirebaseToken(token);
+    const user = await authenticateFirebaseToken(token)
     if (!user) {
-      throw new Error("Invalid token");
+      throw new Error("Invalid token")
     }
-
-    (socket as any).user = {
+    ;(socket as any).user = {
       id: user._id.toString(),
       firebaseId: user.firebaseId,
       name: user.name,
       photoUrl: user.photoUrl,
-    };
+    }
 
-    next();
+    next()
   } catch (error) {
     next(new Error("Authentication error"));
   }
