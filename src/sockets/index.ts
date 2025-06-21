@@ -27,11 +27,11 @@ const setupGameSockets = (io: Server) => {
     socket.on("kickParticipant", (gameId: string, participantId: string) =>
       handleKickParticipant(socket, io, gameId, participantId)
     );
-    socket.on("submitText", (gameId: string, text: string) =>
-      handleSubmitText(socket, io, gameId, text)
+    socket.on("submitText", (data: { gameId: string; text: string }) =>
+      handleSubmitText(socket, io, data.gameId, data.text)
     );
-    socket.on("submitVote", (gameId: string, votedFor: string) =>
-      handleSubmitVote(socket, io, gameId, votedFor)
+    socket.on("submitVote", (data: { gameId: string; votedFor: string }) =>
+      handleSubmitVote(socket, io, data.gameId, data.votedFor)
     );
     socket.on("manualNextPhase", (gameId: string) =>
       handleManualNextPhase(socket, io, gameId)
