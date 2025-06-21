@@ -39,34 +39,78 @@ const io = new socketIo.Server(server, {
 // socket authentication middleware, attach user to socket
 io.use(async (socket, next) => {
   try {
-    console.log("Headers:", socket.handshake.headers);
-
-    let token = socket.handshake.headers.authorization;
-
-    if (!token) {
-      return next(new Error("Authentication error: No authorization header"));
+    console.log("=== SOCKET AUTHENTICATION DEBUG ===");
+    console.log("Socket ID:", socket.id);
+    console.log("Headers:", JSON.stringify(socket.handshake.headers, null, 2));
+    console.log("Query:", JSON.stringify(socket.handshake.query, null, 2));
+    
+    // Get token from headers or query parameters
+    let token: string | undefined;
+    
+    const authHeader = socket.handshake.headers.authorization;
+    if (authHeader && typeof authHeader === "string") {
+    
+      // Handle case where multiple Bearer tokens are present (fix for duplicate headers)
+      if (authHeader.includes(',')) {
+        token = authHeader.split(',')[0].trim();
+      } else {
+        token = authHeader;
+      }
     }
-
-    // Handle "Bearer token" and raw token formats
+    
+    // If no auth header, try query parameter
+    if (!token) {
+      const queryToken = socket.handshake.query.token;
+      if (queryToken) {
+        // Handle both string and string[] cases
+        token = Array.isArray(queryToken) ? queryToken[0] : queryToken;
+      }
+    }
+    
+    if (!token) {
+      return next(new Error("Authentication error: No authorization header or token"));
+    }
+    
     if (token.startsWith("Bearer ")) {
       token = token.substring(7);
     }
-
-    const user = await authenticateFirebaseToken(token);
-    if (!user) {
-      throw new Error("Invalid token");
+    
+    // Additional validation - check if token looks like a valid JWT
+    if (!token.includes('.') || token.split('.').length !== 3) {
+      return next(new Error("Authentication error: Invalid token format"));
     }
-
+    
+    const user = await authenticateFirebaseToken(token);
+    
+    if (!user) {
+      throw new Error("Invalid token - user not found");
+    }
+    
+    console.log("✅ User authenticated:", user.name, user.firebaseId);
+    
     (socket as any).user = {
       id: user._id.toString(),
       firebaseId: user.firebaseId,
       name: user.name,
       photoUrl: user.photoUrl,
     };
-
+    
     next();
   } catch (error) {
-    next(new Error("Authentication error"));
+    console.error("❌ Socket authentication error:", error);
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes('Firebase ID token has expired')) {
+        next(new Error("Authentication error: Token expired"));
+      } else if (error.message.includes('Firebase ID token has invalid signature')) {
+        next(new Error("Authentication error: Invalid token signature"));
+      } else {
+        next(new Error("Authentication error: " + error.message));
+      }
+    } else {
+      next(new Error("Authentication error"));
+    }
   }
 });
 
