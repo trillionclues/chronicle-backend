@@ -44,6 +44,7 @@ export interface GameDocument {
   currentRound: number;
   phase: string;
   remainingTime: number;
+  writingSubmissionsComplete: boolean;
   history: FragmentSchema[];
   participants: ParticipantSchema[];
 }

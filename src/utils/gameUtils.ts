@@ -27,6 +27,7 @@ const sendGameStateToClients = async (gameId: string, io: Server) => {
               game.phase === "writing"
                 ? Boolean(participant.text)
                 : Boolean(participant.votedFor),
+            writingComplete: game.writingSubmissionsComplete,
           },
         ];
       })
@@ -112,9 +113,7 @@ const endWritingPhase = async (gameId: string, io: Server) => {
   const game = await Game.findById(gameId);
   if (!game || game.phase !== "writing") return;
 
-  game.participants.forEach((participant) => {
-    participant.hasSubmitted = false;
-  });
+  game.writingSubmissionsComplete = true;
 
   // Add all submitted texts to history before phase change
   game.participants.forEach((participant) => {
@@ -131,6 +130,7 @@ const endWritingPhase = async (gameId: string, io: Server) => {
 
   game.phase = "voting";
   game.remainingTime = game.voteTime;
+  game.participants.forEach((p) => (p.hasSubmitted = false));
   await game.save();
 
   startPhaseTimer(gameId, io);
