@@ -43,6 +43,8 @@ const sendGameStateToClients = async (gameId: string, io: Server) => {
         text: fragment.text,
         author: userMap.get(fragment.author.toString()),
         votes: fragment.votes,
+        round: fragment.roundNumber,
+        isWinner: fragment.isWinner,
       })),
       remainingTime: game.remainingTime,
       participants: Array.from(userMap.values()),
@@ -157,7 +159,7 @@ const endVotingPhase = async (gameId: string, io: Server) => {
     // Compile final story from winning fragments
     const finalStory = game.history
       .filter((f) => f.isWinner)
-      .sort((a, b) => (a.roundNumber = b.roundNumber))
+      .sort((a, b) => a.roundNumber - b.roundNumber)
       .map((f) => f.text)
       .join(" ");
     //  game.finalStory = finalStory;
