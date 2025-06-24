@@ -26,8 +26,9 @@ const handleSubmitVote = async (
     const participant = game.participants.find(
       (p) => p.userId.toString() === userId
     );
+
     if (participant && game.phase === "voting") {
-      if (participant.hasSubmitted) {
+      if (participant.votedFor) {
         socket.emit("error", {
           message: "You have already submitted your vote",
         });
@@ -38,16 +39,12 @@ const handleSubmitVote = async (
       participant.hasSubmitted = true;
       await game.save();
 
-      const allVoted = game.participants.every((p) => p.hasSubmitted);
+      const allVoted = game.participants.every((p) => p.votedFor);
       if (allVoted) {
         await endVotingPhase(gameId, io);
       }
 
       sendGameStateToClients(gameId, io);
-    } else {
-      socket.emit("error", {
-        message: "Not allowed to vote at this stage",
-      });
     }
   } catch (error) {
     socket.emit("error", { message: "Error submitting vote" });

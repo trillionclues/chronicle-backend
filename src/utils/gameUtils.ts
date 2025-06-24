@@ -23,7 +23,10 @@ const sendGameStateToClients = async (gameId: string, io: Server) => {
             photoUrl: (participant.userId as any).photoUrl,
             text: participant.text,
             isCreator: participant.isCreator,
-            hasSubmitted: participant.hasSubmitted,
+            hasSubmitted:
+              game.phase === "writing"
+                ? Boolean(participant.text)
+                : Boolean(participant.votedFor),
           },
         ];
       })
@@ -109,9 +112,13 @@ const endWritingPhase = async (gameId: string, io: Server) => {
   const game = await Game.findById(gameId);
   if (!game || game.phase !== "writing") return;
 
+  game.participants.forEach((participant) => {
+    participant.hasSubmitted = false;
+  });
+
   // Add all submitted texts to history before phase change
   game.participants.forEach((participant) => {
-    if (participant.hasSubmitted && participant.text) {
+    if (participant.text) {
       game.history.push({
         text: participant.text,
         author: participant.userId,
@@ -124,11 +131,8 @@ const endWritingPhase = async (gameId: string, io: Server) => {
 
   game.phase = "voting";
   game.remainingTime = game.voteTime;
-  game.participants.forEach((participant) => {
-    participant.hasSubmitted = false;
-  });
-
   await game.save();
+
   startPhaseTimer(gameId, io);
   sendGameStateToClients(gameId, io);
 };

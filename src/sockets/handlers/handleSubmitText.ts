@@ -26,8 +26,9 @@ const handleSubmitText = async (
     const participant = game.participants.find(
       (p) => p.userId.toString() === userId
     );
+
     if (participant && game.phase === "writing") {
-      if (participant.hasSubmitted) {
+      if (participant.text) {
         socket.emit("error", {
           message: "Text has already been submitted for this round",
         });
@@ -38,16 +39,12 @@ const handleSubmitText = async (
       participant.hasSubmitted = true;
       await game.save();
 
-      const allSubmitted = game.participants.every((p) => p.hasSubmitted);
+      const allSubmitted = game.participants.every((p) => p.text);
       if (allSubmitted) {
         await endWritingPhase(gameId, io);
       }
 
       sendGameStateToClients(gameId, io);
-    } else {
-      socket.emit("error", {
-        message: "Not allowed to submit text at this stage",
-      });
     }
   } catch (error) {
     socket.emit("error", { message: "Error submitting text" });
