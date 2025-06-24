@@ -107,13 +107,26 @@ const endWritingPhase = async (gameId: string, io: Server) => {
   const game = await Game.findById(gameId);
   if (!game || game.phase !== "writing") return;
 
+  // Add all submitted texts to history before phase change
+  game.participants.forEach((participant) => {
+    if (participant.hasSubmitted && participant.text) {
+      game.history.push({
+        text: participant.text,
+        author: participant.userId,
+        votes: 0,
+        roundNumber: game.currentRound,
+        isWinner: false,
+      });
+    }
+  });
+
   game.phase = "voting";
   game.remainingTime = game.voteTime;
   game.participants.forEach((participant) => {
     participant.hasSubmitted = false;
   });
-  await game.save();
 
+  await game.save();
   startPhaseTimer(gameId, io);
   sendGameStateToClients(gameId, io);
 };
@@ -122,13 +135,39 @@ const endVotingPhase = async (gameId: string, io: Server) => {
   const game = await Game.findById(gameId);
   if (!game || game.phase !== "voting") return;
 
+  // Mark the winning fragment
   const winningFragment = calculateWinningFragment(game.participants);
   if (winningFragment) {
-    game.history.push(winningFragment);
+    // Find and update the winning fragment in history
+    const fragmentIndex = game.history.findIndex(
+      (f) =>
+        f.text === winningFragment.text &&
+        f.author.toString() === winningFragment.author.toString() &&
+        f.roundNumber === game.currentRound
+    );
+
+    if (fragmentIndex !== -1) {
+      game.history[fragmentIndex].isWinner = true;
+      game.history[fragmentIndex].votes = winningFragment.votes;
+    }
   }
 
   if (game.currentRound >= game.maxRounds) {
     game.phase = "finished";
+    // Compile final story from winning fragments
+    const finalStory = game.history
+      .filter((f) => f.isWinner)
+      .sort((a, b) => (a.roundNumber = b.roundNumber))
+      .map((f) => f.text)
+      .join(" ");
+    //  game.finalStory = finalStory;
+    // game.history.push({
+    //   text: finalStory,
+    //   author: game.participants.find(p => p.isCreator)?.userId as any,
+    //   votes: 0,
+    //   roundNumber: game.maxRounds,
+    //   isWinner: true,
+    // })
   } else {
     game.currentRound += 1;
     game.phase = "writing";

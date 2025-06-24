@@ -30,6 +30,8 @@ export interface FragmentSchema {
   text: string;
   author: mongoose.Types.ObjectId | UserDocument;
   votes: number;
+  roundNumber: number;
+  isWinner: boolean;
 }
 
 export interface GameDocument {

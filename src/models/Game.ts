@@ -19,6 +19,8 @@ const fragmentSchema = new Schema<FragmentSchema>({
   text: { type: String, required: true },
   author: { type: Schema.Types.ObjectId, ref: "User", required: true },
   votes: { type: Number, default: 0 },
+  roundNumber: { type: Number, required: true },
+  isWinner: { type: Boolean, default: false },
 });
 
 const gameSchema = new Schema<GameDocument>(
