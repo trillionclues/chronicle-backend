@@ -5,6 +5,7 @@ import {
   ParticipantSchema,
   VoteCount,
 } from "../types/gameModelTypes";
+import { auth } from "firebase-admin";
 
 const sendGameStateToClients = async (gameId: string, io: Server) => {
   try {
@@ -141,7 +142,23 @@ const endVotingPhase = async (gameId: string, io: Server) => {
   const game = await Game.findById(gameId);
   if (!game || game.phase !== "voting") return;
 
-  // Mark the winning fragment
+  // Calculate vote counts for all participants
+  const voteCounts: VoteCount = {};
+  game.participants.forEach((participant) => {
+    if (participant.votedFor) {
+      voteCounts[participant.votedFor.toString()] =
+        (voteCounts[participant.votedFor.toString()] || 0) + 1;
+    }
+  });
+
+  // Update ALL fragments in history with their vote counts
+  game.history.forEach((fragment) => {
+    if (fragment.roundNumber === game.currentRound) {
+      fragment.votes = voteCounts[fragment.author.toString()] || 0;
+    }
+  });
+
+  // Mark winning fragment
   const winningFragment = calculateWinningFragment(game.participants);
   if (winningFragment) {
     // Find and update the winning fragment in history
@@ -154,7 +171,6 @@ const endVotingPhase = async (gameId: string, io: Server) => {
 
     if (fragmentIndex !== -1) {
       game.history[fragmentIndex].isWinner = true;
-      game.history[fragmentIndex].votes = winningFragment.votes;
     }
   }
 
@@ -166,14 +182,6 @@ const endVotingPhase = async (gameId: string, io: Server) => {
       .sort((a, b) => a.roundNumber - b.roundNumber)
       .map((f) => f.text)
       .join(" ");
-    //  game.finalStory = finalStory;
-    // game.history.push({
-    //   text: finalStory,
-    //   author: game.participants.find(p => p.isCreator)?.userId as any,
-    //   votes: 0,
-    //   roundNumber: game.maxRounds,
-    //   isWinner: true,
-    // })
   } else {
     game.currentRound += 1;
     game.phase = "writing";
@@ -217,22 +225,52 @@ const calculateWinningFragment = (
         (voteCounts[participant.votedFor.toString()] || 0) + 1;
     }
   });
-  let maxVotes = -1;
-  let winner = null;
 
+  let maxVotes = -1;
+  let winners: any[] = [];
+
+  // Find all participants with the highest vote count
   participants.forEach((participant) => {
     const votes = voteCounts[participant.userId.toString()] || 0;
-    if (participant.text && votes > maxVotes) {
-      maxVotes = votes;
-      winner = {
-        text: participant.text,
-        author: participant.userId,
-        votes: votes,
-      };
+    if (participant.text) {
+      if (votes > maxVotes) {
+        maxVotes = votes;
+        winners = [
+          {
+            text: participant.text,
+            author: participant.userId,
+            votes: votes,
+            participant: participant,
+          },
+        ];
+      } else if (votes === maxVotes) {
+        winners.push({
+          text: participant.text,
+          author: participant.userId,
+          votes: votes,
+          participant: participant,
+        });
+      }
     }
   });
 
-  return winner;
+  // If no votes were cast, return null
+  if (maxVotes === 0) {
+    return null;
+  }
+
+  // If there's only one winner
+  if (winners.length === 1) {
+    return winners[0];
+  }
+
+  // Tie-breaking: Random selection
+  const randomIndex = Math.floor(Math.random() * winners.length);
+  return winners[randomIndex];
+
+  //  OR - Creator wins
+  // const creatorWinner = winners.find(w => w.participant.isCreator);
+  // return creatorWinner || winners[0];
 };
 
 export {
